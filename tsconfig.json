@@ -9,5 +9,5 @@
     "outDir": "bin",
     "baseUrl": "."
   },
-  "include": ["modules/**/*.ts", "user-service/**/*.ts"]
+  "include": ["modules/**/*.ts", "user-service/**/*.ts", "lambda-test/**/*.ts"]
 }
