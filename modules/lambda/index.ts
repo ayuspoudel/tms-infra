@@ -1,6 +1,9 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 
+/**
+ * Options for creating a Lambda function in a reusable way.
+ */
 export interface LambdaOptions {
     /**
      * Deployment type: "s3" | "image" | "inline"
@@ -45,6 +48,11 @@ export interface LambdaOptions {
      * Layers
      */
     layers?: pulumi.Input<string>[];
+
+    /**
+     * Tracing mode for X-Ray ("Active" | "PassThrough" | "Disabled")
+     */
+    tracingConfig?: aws.types.input.lambda.FunctionTracingConfig;
 }
 
 /**
@@ -56,17 +64,18 @@ export function createLambdaFunction(
     opts: LambdaOptions
 ): aws.lambda.Function {
     const baseConfig = {
-        role: role.arn, // always required
+        role: role.arn,
         environment: { variables: opts.envVars || {} },
         timeout: opts.timeout ?? 10,
         memorySize: opts.memorySize ?? 256,
         vpcConfig: opts.vpcConfig,
         layers: opts.layers,
+        tracingConfig: opts.tracingConfig ?? { mode: "Active" }, // enable X-Ray by default
     };
 
     if (opts.packageType === "image") {
         if (!opts.imageUri) {
-            throw new Error("imageUri is required when packageType is 'image'");
+            throw new Error("imageUri is required when packageType = 'image'");
         }
         return new aws.lambda.Function(name, {
             packageType: "Image",
@@ -77,7 +86,7 @@ export function createLambdaFunction(
 
     if (opts.packageType === "s3") {
         if (!opts.s3Bucket || !opts.s3Key) {
-            throw new Error("s3Bucket and s3Key are required when packageType is 's3'");
+            throw new Error("s3Bucket and s3Key are required when packageType = 's3'");
         }
         return new aws.lambda.Function(name, {
             runtime: opts.runtime ?? "nodejs18.x",
@@ -88,14 +97,19 @@ export function createLambdaFunction(
         });
     }
 
-    // Inline fallback (good for tests/small utils)
+    // Inline fallback (good for tests/small utilities)
     return new aws.lambda.Function(name, {
         runtime: opts.runtime ?? "nodejs18.x",
         handler: opts.handler ?? "index.handler",
         code: new pulumi.asset.AssetArchive({
-            ".": new pulumi.asset.StringAsset(
+            "index.js": new pulumi.asset.StringAsset(
                 opts.code ??
-                    "exports.handler = async () => ({ statusCode: 200, body: 'Hello from inline Lambda' });"
+                    `
+                    exports.handler = async (event) => {
+                        console.log("Event:", JSON.stringify(event, null, 2));
+                        return { statusCode: 200, body: "Hello from inline Lambda" };
+                    };
+                    `
             ),
         }),
         ...baseConfig,
