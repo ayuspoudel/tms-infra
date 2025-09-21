@@ -2,18 +2,21 @@ import * as pulumi from "@pulumi/pulumi"
 import * as aws from "@pulumi/aws"
 
 const lambdacode = new pulumi.asset.AssetArchive({
-    "index.js": new pulumi.asset.StringAsset(`
-        exports.handler = async function(event){
-        console.log("Event: ", event);
-        return {
-            statusCode: 200,
-            body: JSON.stringify({message: "Hello from inline lambda"}),
-        };
+  ".": new pulumi.asset.FileArchive("./lambda"),
+});
 
-        }
-        `),
+const testdynamodbtable = new aws.dynamodb.Table ("testdynamodbtable", {
+    attributes: [{
+        name: "id",
+        type: "S",
+    }],
+    hashKey: "id",
+    billingMode: "PAY_PER_REQUEST",
+    name: "testdynamodbtable",
+    tags: {
+        Environment: "dev",
+    }
 })
-
 const role = new aws.iam.Role("lambdaRole", {
   assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: "lambda.amazonaws.com" }),
 });
@@ -22,6 +25,27 @@ new aws.iam.RolePolicyAttachment("lambdaBasicExec", {
   role: role.name,
   policyArn: aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole,
 });
+
+new aws.iam.RolePolicy("lambdaDynamoTablePolicy", {
+  role: role.id,
+  policy: pulumi.interpolate`{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Scan"
+        ],
+        "Resource": "${testdynamodbtable.arn}"
+      }
+    ]
+  }`,
+});
+
 
 
 const testlambdafunction = new aws.lambda.Function("testlambdafunction", {
@@ -35,7 +59,7 @@ const testlambdafunction = new aws.lambda.Function("testlambdafunction", {
     publish: true,
     environment: {
         variables: {    
-            ENV_VAR: "value",
+            TABLE_NAME: testdynamodbtable.name,
         },
     
     },
@@ -85,18 +109,7 @@ new aws.lambda.Permission("apiGatewayInvoke", {
   sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
 });
 
-const testdynamodbtable = new aws.dynamodb.Table ("testdynamodbtable", {
-    attributes: [{
-        name: "id",
-        type: "S",
-    }],
-    hashKey: "id",
-    billingMode: "PAY_PER_REQUEST",
-    name: "testdynamodbtable",
-    tags: {
-        Environment: "dev",
-    }
-})
+
 
 export const apiUrl = pulumi.interpolate`${stage.invokeUrl}`;
 export const lambdaName = testlambdafunction.name;
