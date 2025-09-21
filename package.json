@@ -1,0 +1,16 @@
+{
+    "name": "tms-infra",
+    "main": "index.ts",
+    "devDependencies": {
+        "@types/node": "^18.19.127",
+        "typescript": "^5.0.0"
+    },
+    "dependencies": {
+        "@aws-sdk/client-lambda": "^3.893.0",
+        "@pulumi/aws": "^7.0.0",
+        "@pulumi/awsx": "^3.0.0",
+        "@pulumi/pulumi": "^3.113.0",
+        "client-dynamodb": "github:aws-sdk/client-dynamodb",
+        "node-fetch": "^3.3.2"
+    }
+}
