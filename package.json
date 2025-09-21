@@ -21,6 +21,10 @@
   "devDependencies": {
     "@pulumi/aws": "^7.7.0",
     "@pulumi/pulumi": "^3.197.0",
+    "pulumi-infra-modules": "github:ayuspoudel/pulumi-infra-modules#main",
     "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "tms-infra": "github:ayuspoudel/pulumi-infra-modules#main"
   }
 }

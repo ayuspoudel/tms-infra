@@ -8,6 +8,8 @@
     "dependencies": {
         "@pulumi/aws": "^7.0.0",
         "@pulumi/awsx": "^3.0.0",
-        "@pulumi/pulumi": "^3.113.0"
+        "@pulumi/pulumi": "^3.113.0",
+        "pulumi-infra-modules": "^0.1.0",
+        "tms-infra": "github:ayuspoudel/pulumi-infra-modules#main"
     }
 }
