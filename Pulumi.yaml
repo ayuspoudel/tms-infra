@@ -1,5 +1,5 @@
 name: tms-infra
-description: AWS TypeScript Pulumi Program to deploy serverless components like lambda, dynamodb, cognito
+description: aws serverless architecture infra as code for task management system
 runtime:
   name: nodejs
   options:

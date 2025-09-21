@@ -1,0 +1,20 @@
+{
+    "version": 3,
+    "deployment": {
+        "manifest": {
+            "time": "2025-09-21T19:49:09.439169-04:00",
+            "magic": "3981f2dd175998977d95bf9dcc9d98251f8dad42ad4e692cb72e9d3f49b59729",
+            "version": "v3.192.0"
+        },
+        "secrets_providers": {
+            "type": "service",
+            "state": {
+                "url": "https://api.pulumi.com",
+                "owner": "ayuspoudel-org",
+                "project": "tms-infra",
+                "stack": "stg"
+            }
+        },
+        "metadata": {}
+    }
+}

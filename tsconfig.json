@@ -10,11 +10,12 @@
         "pretty": true,
         "noFallthroughCasesInSwitch": true,
         "noImplicitReturns": true,
-        "forceConsistentCasingInFileNames": true,
-        "types": ["node"]
+        "forceConsistentCasingInFileNames": true
     },
     "files": [
         "index.ts"
     ],
-    "include": ["**/*.ts"]
+    "include":[
+        "**/*.ts"
+    ]
 }
