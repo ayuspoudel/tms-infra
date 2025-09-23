@@ -89,13 +89,15 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
       const lambda = new aws.lambda.Function(
         `${name}-${endpoint.pathPart}-lambda`,
         {
-          code: endpoint.s3Bucket && endpoint.s3Key
-            ? new pulumi.asset.RemoteAsset(
-                pulumi.interpolate`s3://${endpoint.s3Bucket}/${endpoint.s3Key}`
-              )
+        code:
+          endpoint.s3Bucket && endpoint.s3Key
+            ? pulumi
+                .all([endpoint.s3Bucket, endpoint.s3Key])
+                .apply(([bucket, key]) => new pulumi.asset.RemoteAsset(`s3://${bucket}/${key}`))
             : new pulumi.asset.AssetArchive({
                 ".": new pulumi.asset.FileArchive(endpoint.lambdaCodePath ?? "."),
               }),
+
           handler: endpoint.handler ?? "index.handler",
           runtime: endpoint.runtime ?? "nodejs18.x",
           role: role.arn,
