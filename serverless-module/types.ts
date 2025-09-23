@@ -1,6 +1,5 @@
 import * as aws from "@pulumi/aws";
 
-// Configuration for the DynamoDB table
 export interface TableConfig {
   name: string;
   attributes: aws.dynamodb.TableArgs["attributes"];
@@ -10,15 +9,21 @@ export interface TableConfig {
   tags?: { [key: string]: string };
 }
 
-// Configuration for each API Gateway endpoint
 export interface EndpointConfig {
-  pathPart: string;          // e.g. "tasks", "users"
-  lambdaCodePath: string;    // folder path to the lambda code
+  pathPart: string;
+  lambdaCodePath?: string;
+  s3Bucket?: string;
+  s3Key?: string;
+  handler?: string;
+  runtime?: string;
+  timeout?: number;
+  memorySize?: number;
+  architectures?: string[];
+  environment?: { [key: string]: string };
 }
 
-// Full set of arguments for the component
 export interface LambdaDynamoApiArgs {
-  table: TableConfig;
+  tables?: TableConfig[];
   endpoints: EndpointConfig[];
-  stageName?: string;        // optional API Gateway stage (default "dev")
+  stageName?: string;
 }

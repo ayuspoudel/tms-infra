@@ -1,10 +1,10 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import { LambdaDynamoApiArgs } from "./types";
+import { LambdaDynamoApiArgs, TableConfig, EndpointConfig } from "./types";
 
 export class LambdaDynamoApi extends pulumi.ComponentResource {
   public readonly apiUrl: pulumi.Output<string>;
-  public readonly dynamodbTableName: pulumi.Output<string>;
+  public readonly dynamodbTables: { [key: string]: pulumi.Output<string> };
   public readonly lambdas: pulumi.Output<string>[];
 
   constructor(
@@ -15,20 +15,7 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
     super("custom:infra:LambdaDynamoApi", name, {}, opts);
 
     const stageName = args.stageName ?? "dev";
-
-    const table = new aws.dynamodb.Table(
-      `${name}-table`,
-      {
-        attributes: args.table.attributes,
-        hashKey: args.table.hashKey,
-        rangeKey: args.table.rangeKey,
-        billingMode: args.table.billingMode ?? "PAY_PER_REQUEST",
-        name: args.table.name,
-        tags: args.table.tags ?? { Environment: pulumi.getStack() },
-      },
-      { parent: this }
-    );
-
+    this.dynamodbTables = {};
     const role = new aws.iam.Role(
       `${name}-lambdaRole`,
       {
@@ -48,29 +35,50 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
       { parent: this }
     );
 
-    new aws.iam.RolePolicy(
-      `${name}-dynamoPolicy`,
-      {
-        role: role.id,
-        policy: pulumi.interpolate`{
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Action": [
-                "dynamodb:PutItem",
-                "dynamodb:GetItem",
-                "dynamodb:UpdateItem",
-                "dynamodb:DeleteItem",
-                "dynamodb:Scan"
-              ],
-              "Resource": "${table.arn}"
-            }
-          ]
-        }`,
-      },
-      { parent: this }
-    );
+    const tables: { [key: string]: aws.dynamodb.Table } = {};
+    if (args.tables && args.tables.length > 0) {
+      for (const tbl of args.tables) {
+        const table = new aws.dynamodb.Table(
+          `${name}-${tbl.name}`,
+          {
+            attributes: tbl.attributes,
+            hashKey: tbl.hashKey,
+            rangeKey: tbl.rangeKey,
+            billingMode: tbl.billingMode ?? "PAY_PER_REQUEST",
+            name: tbl.name,
+            tags: tbl.tags ?? { Environment: pulumi.getStack() },
+          },
+          { parent: this }
+        );
+        tables[tbl.name] = table;
+        this.dynamodbTables[tbl.name] = table.name;
+
+        new aws.iam.RolePolicy(
+          `${name}-${tbl.name}-policy`,
+          {
+            role: role.id,
+            policy: pulumi.interpolate`{
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:PutItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Scan",
+                    "dynamodb:Query"
+                  ],
+                  "Resource": "${table.arn}"
+                }
+              ]
+            }`,
+          },
+          { parent: this }
+        );
+      }
+    }
 
     const api = new aws.apigateway.RestApi(`${name}-api`, {}, { parent: this });
 
@@ -81,16 +89,30 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
       const lambda = new aws.lambda.Function(
         `${name}-${endpoint.pathPart}-lambda`,
         {
-          code: new pulumi.asset.AssetArchive({
-            ".": new pulumi.asset.FileArchive(endpoint.lambdaCodePath),
-          }),
-          handler: "index.handler",
-          runtime: "nodejs18.x",
+          code: endpoint.s3Bucket && endpoint.s3Key
+            ? new pulumi.asset.RemoteAsset(
+                pulumi.interpolate`s3://${endpoint.s3Bucket}/${endpoint.s3Key}`
+              )
+            : new pulumi.asset.AssetArchive({
+                ".": new pulumi.asset.FileArchive(endpoint.lambdaCodePath ?? "."),
+              }),
+          handler: endpoint.handler ?? "index.handler",
+          runtime: endpoint.runtime ?? "nodejs18.x",
           role: role.arn,
-          timeout: 30,
-          memorySize: 128,
-          architectures: ["arm64"],
-          environment: { variables: { TABLE_NAME: table.name } },
+          timeout: endpoint.timeout ?? 30,
+          memorySize: endpoint.memorySize ?? 128,
+          architectures: endpoint.architectures ?? ["arm64"],
+          environment: {
+            variables: {
+              ...endpoint.environment,
+              ...Object.fromEntries(
+                Object.entries(tables).map(([tname, table]) => [
+                  `${tname.toUpperCase().replace(/-/g, "_")}_TABLE_NAME`,
+                  table.name,
+                ])
+              ),
+            },
+          },
         },
         { parent: this }
       );
@@ -150,10 +172,7 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
       {
         restApi: api.id,
       },
-      {
-        parent: this,
-        dependsOn: integrationsArray,
-      }
+      { parent: this, dependsOn: integrationsArray }
     );
 
     const stage = new aws.apigateway.Stage(
@@ -167,12 +186,11 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
     );
 
     this.apiUrl = pulumi.interpolate`https://${api.id}.execute-api.${aws.config.region}.amazonaws.com/${stage.stageName}`;
-    this.dynamodbTableName = table.name;
     this.lambdas = lambdaNames;
 
     this.registerOutputs({
       apiUrl: this.apiUrl,
-      dynamodbTableName: this.dynamodbTableName,
+      dynamodbTables: this.dynamodbTables,
       lambdas: this.lambdas,
     });
   }
