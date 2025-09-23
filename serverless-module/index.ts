@@ -1,6 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import { LambdaDynamoApiArgs, TableConfig, EndpointConfig } from "./types";
+import { LambdaDynamoApiArgs } from "./types";
 
 export class LambdaDynamoApi extends pulumi.ComponentResource {
   public readonly apiUrl: pulumi.Output<string>;
@@ -16,6 +16,7 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
 
     const stageName = args.stageName ?? "dev";
     this.dynamodbTables = {};
+
     const role = new aws.iam.Role(
       `${name}-lambdaRole`,
       {
@@ -47,9 +48,12 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
             billingMode: tbl.billingMode ?? "PAY_PER_REQUEST",
             name: tbl.name,
             tags: tbl.tags ?? { Environment: pulumi.getStack() },
+            globalSecondaryIndexes: tbl.globalSecondaryIndexes,
+            ttl: tbl.ttl,
           },
           { parent: this }
         );
+
         tables[tbl.name] = table;
         this.dynamodbTables[tbl.name] = table.name;
 
@@ -89,15 +93,19 @@ export class LambdaDynamoApi extends pulumi.ComponentResource {
       const lambda = new aws.lambda.Function(
         `${name}-${endpoint.pathPart}-lambda`,
         {
-        code:
-          endpoint.s3Bucket && endpoint.s3Key
-            ? pulumi
-                .all([endpoint.s3Bucket, endpoint.s3Key])
-                .apply(([bucket, key]) => new pulumi.asset.RemoteAsset(`s3://${bucket}/${key}`))
-            : new pulumi.asset.AssetArchive({
-                ".": new pulumi.asset.FileArchive(endpoint.lambdaCodePath ?? "."),
-              }),
-
+          code:
+            endpoint.s3Bucket && endpoint.s3Key
+              ? pulumi
+                  .all([endpoint.s3Bucket, endpoint.s3Key])
+                  .apply(
+                    ([bucket, key]) =>
+                      new pulumi.asset.RemoteAsset(`s3://${bucket}/${key}`)
+                  )
+              : new pulumi.asset.AssetArchive({
+                  ".": new pulumi.asset.FileArchive(
+                    endpoint.lambdaCodePath ?? "."
+                  ),
+                }),
           handler: endpoint.handler ?? "index.handler",
           runtime: endpoint.runtime ?? "nodejs18.x",
           role: role.arn,

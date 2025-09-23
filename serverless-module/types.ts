@@ -7,6 +7,8 @@ export interface TableConfig {
   rangeKey?: string;
   billingMode?: string;
   tags?: { [key: string]: string };
+  globalSecondaryIndexes?: aws.types.input.dynamodb.TableGlobalSecondaryIndex[];
+  ttl?: aws.types.input.dynamodb.TableTtl;
 }
 
 export interface EndpointConfig {
